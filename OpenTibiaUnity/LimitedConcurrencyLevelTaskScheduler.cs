@@ -19,18 +19,22 @@ public class LimitedConcurrencyLevelTaskScheduler : TaskScheduler
     private int _delegatesQueuedOrRunning = 0;
 
     // Creates a new instance with the specified degree of parallelism. 
-    public LimitedConcurrencyLevelTaskScheduler(int maxDegreeOfParallelism) {
+    public LimitedConcurrencyLevelTaskScheduler(int maxDegreeOfParallelism)
+    {
         if (maxDegreeOfParallelism < 1) throw new ArgumentOutOfRangeException("maxDegreeOfParallelism");
         _maxDegreeOfParallelism = maxDegreeOfParallelism;
     }
 
     // Queues a task to the scheduler. 
-    protected sealed override void QueueTask(Task task) {
+    protected sealed override void QueueTask(Task task)
+    {
         // Add the task to the list of tasks to be processed.  If there aren't enough 
         // delegates currently queued or running to process tasks, schedule another. 
-        lock (_tasks) {
+        lock (_tasks)
+        {
             _tasks.AddLast(task);
-            if (_delegatesQueuedOrRunning < _maxDegreeOfParallelism) {
+            if (_delegatesQueuedOrRunning < _maxDegreeOfParallelism)
+            {
                 ++_delegatesQueuedOrRunning;
                 NotifyThreadPoolOfPendingWork();
             }
@@ -38,20 +42,25 @@ public class LimitedConcurrencyLevelTaskScheduler : TaskScheduler
     }
 
     // Inform the ThreadPool that there's work to be executed for this scheduler. 
-    private void NotifyThreadPoolOfPendingWork() {
+    private void NotifyThreadPoolOfPendingWork()
+    {
         ThreadPool.UnsafeQueueUserWorkItem(_ =>
         {
             // Note that the current thread is now processing work items.
             // This is necessary to enable inlining of tasks into this thread.
             _currentThreadIsProcessingItems = true;
-            try {
+            try
+            {
                 // Process all available items in the queue.
-                while (true) {
+                while (true)
+                {
                     Task item;
-                    lock (_tasks) {
+                    lock (_tasks)
+                    {
                         // When there are no more items to be processed,
                         // note that we're done processing, and get out.
-                        if (_tasks.Count == 0) {
+                        if (_tasks.Count == 0)
+                        {
                             --_delegatesQueuedOrRunning;
                             break;
                         }
@@ -71,7 +80,8 @@ public class LimitedConcurrencyLevelTaskScheduler : TaskScheduler
     }
 
     // Attempts to execute the specified task on the current thread. 
-    protected sealed override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued) {
+    protected sealed override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
+    {
         // If this thread isn't already processing a task, we don't support inlining
         if (!_currentThreadIsProcessingItems) return false;
 
@@ -87,7 +97,8 @@ public class LimitedConcurrencyLevelTaskScheduler : TaskScheduler
     }
 
     // Attempt to remove a previously scheduled task from the scheduler. 
-    protected sealed override bool TryDequeue(Task task) {
+    protected sealed override bool TryDequeue(Task task)
+    {
         lock (_tasks) return _tasks.Remove(task);
     }
 
@@ -95,13 +106,17 @@ public class LimitedConcurrencyLevelTaskScheduler : TaskScheduler
     public sealed override int MaximumConcurrencyLevel { get { return _maxDegreeOfParallelism; } }
 
     // Gets an enumerable of the tasks currently scheduled on this scheduler. 
-    protected sealed override IEnumerable<Task> GetScheduledTasks() {
+    protected sealed override IEnumerable<Task> GetScheduledTasks()
+    {
         bool lockTaken = false;
-        try {
+        try
+        {
             Monitor.TryEnter(_tasks, ref lockTaken);
             if (lockTaken) return _tasks;
             else throw new NotSupportedException();
-        } finally {
+        }
+        finally
+        {
             if (lockTaken) Monitor.Exit(_tasks);
         }
     }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using SkiaSharp;
 
 namespace OpenTibiaUnity.Core.Assets
 {
@@ -13,8 +14,9 @@ namespace OpenTibiaUnity.Core.Assets
         public uint Signature { get; private set; } = 0;
         public uint SpritesCount { get; private set; } = 0;
         public long SpritesOffset { get; private set; } = 0;
-        
-        public ContentSprites(byte[] buffer, int clientVersion, bool alpha = false) {
+
+        public ContentSprites(byte[] buffer, int clientVersion, bool alpha = false)
+        {
             m_BinaryReader = new IO.BinaryStream(buffer);
             m_ClientVersion = clientVersion;
             m_UseAlpha = alpha;
@@ -22,29 +24,36 @@ namespace OpenTibiaUnity.Core.Assets
             Parse();
         }
 
-        public static uint ClientVersionToSprSignature(int version) {
-            switch (version) {
+        public static uint ClientVersionToSprSignature(int version)
+        {
+            switch (version)
+            {
                 case 770: return 0x439852be;
                 case 1098: return 0x57bbd603;
                 default: return 0;
             }
         }
 
-        public byte[] ConvertTo(int newVersion) {
+        public byte[] ConvertTo(int newVersion)
+        {
             var binaryWriter = new IO.BinaryStream();
             binaryWriter.WriteUnsignedInt(ClientVersionToSprSignature(newVersion));
 
             int padding = 0;
-            if (newVersion >= 960) {
+            if (newVersion >= 960)
+            {
                 binaryWriter.WriteUnsignedInt(SpritesCount);
                 padding = m_ClientVersion < 960 ? 2 : 0;
-            } else {
+            }
+            else
+            {
                 binaryWriter.WriteUnsignedShort((ushort)SpritesCount);
                 padding = m_ClientVersion >= 960 ? -2 : 0;
             }
 
             m_BinaryReader.Seek(SpritesOffset, System.IO.SeekOrigin.Begin);
-            for (uint i = 0; i < SpritesCount; i++) {
+            for (uint i = 0; i < SpritesCount; i++)
+            {
                 var spriteAddress = m_BinaryReader.ReadUnsignedInt();
                 if (spriteAddress == 0)
                     binaryWriter.WriteUnsignedInt(0);
@@ -58,22 +67,25 @@ namespace OpenTibiaUnity.Core.Assets
             return binaryWriter.GetBuffer();
         }
 
-        private void Parse() {
+        private void Parse()
+        {
             Signature = m_BinaryReader.ReadUnsignedInt();
             SpritesCount = m_ClientVersion >= 960 ? m_BinaryReader.ReadUnsignedInt() : m_BinaryReader.ReadUnsignedShort();
             SpritesOffset = m_BinaryReader.Position;
         }
 
-        public Bitmap GetSprite(uint id) {
+        public SKBitmap GetSprite(uint id)
+        {
             lock (m_BinaryReader)
                 return RawGetSprite(id);
         }
 
-        private Bitmap RawGetSprite(uint id) {
+        private SKBitmap RawGetSprite(uint id)
+        {
             if (id == 0 || m_BinaryReader == null)
                 return null;
-            
-            m_BinaryReader.Seek((int)((id-1) * 4) + SpritesOffset, System.IO.SeekOrigin.Begin);
+
+            m_BinaryReader.Seek((int)((id - 1) * 4) + SpritesOffset, System.IO.SeekOrigin.Begin);
 
             uint spriteAddress = m_BinaryReader.ReadUnsignedInt();
             if (spriteAddress == 0)
@@ -88,14 +100,16 @@ namespace OpenTibiaUnity.Core.Assets
             int read = 0;
             byte channels = (byte)(m_UseAlpha ? 4 : 3);
 
-            Bitmap bitmap = new Bitmap(32, 32);
-            Color transparentColor = Color.Transparent;
+            var bitmap = new SKBitmap(32, 32);
+            var transparentColor = SKColors.Transparent;
 
-            while (read < pixelDataSize && writePos < 4096) {
+            while (read < pixelDataSize && writePos < 4096)
+            {
                 ushort transparentPixels = m_BinaryReader.ReadUnsignedShort();
                 ushort coloredPixels = m_BinaryReader.ReadUnsignedShort();
 
-                for (int i = 0; i < transparentPixels && writePos < 4096; i++) {
+                for (int i = 0; i < transparentPixels && writePos < 4096; i++)
+                {
                     int pixel = writePos / 4;
                     int x = pixel % 32;
                     int y = pixel / 32;
@@ -104,24 +118,26 @@ namespace OpenTibiaUnity.Core.Assets
                     writePos += 4;
                 }
 
-                for (int i = 0; i < coloredPixels && writePos < 4096; i++) {
-                    int r = m_BinaryReader.ReadUnsignedByte();
-                    int g = m_BinaryReader.ReadUnsignedByte();
-                    int b = m_BinaryReader.ReadUnsignedByte();
-                    int a = m_UseAlpha ? m_BinaryReader.ReadUnsignedByte() : 0xFF;
+                for (int i = 0; i < coloredPixels && writePos < 4096; i++)
+                {
+                    var r = m_BinaryReader.ReadUnsignedByte();
+                    var g = m_BinaryReader.ReadUnsignedByte();
+                    var b = m_BinaryReader.ReadUnsignedByte();
+                    var a = m_UseAlpha ? m_BinaryReader.ReadUnsignedByte() : (byte)0xFF;
 
                     int pixel = writePos / 4;
                     int x = pixel % 32;
                     int y = pixel / 32;
 
-                    bitmap.SetPixel(x, y, Color.FromArgb(a, r, g, b));
+                    bitmap.SetPixel(x, y, new SKColor(r, g, b, a));
                     writePos += 4;
                 }
 
                 read += 4 + (channels * coloredPixels);
             }
 
-            while (writePos < 4096) {
+            while (writePos < 4096)
+            {
                 int pixel = writePos / 4;
                 int x = pixel % 32;
                 int y = pixel / 32;

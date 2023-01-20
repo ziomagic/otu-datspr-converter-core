@@ -2,6 +2,7 @@
 using Google.Protobuf.Collections;
 using OpenTibiaUnity.Core.Metaflags;
 using OpenTibiaUnity.Protobuf.Appearances;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -15,14 +16,15 @@ namespace OpenTibiaUnity.Core.Converter
     // to fit the purpose and didn't gave much care about style
     public class LegacyConverter : IConverter
     {
-        public delegate void DrawBitmapsDelegate(AsyncGraphics gfx, Bitmap[] bitmaps, int x = 0, int y = 0);
+        public delegate void DrawBitmapsDelegate(AsyncGraphics gfx, SKBitmap[] bitmaps, int x = 0, int y = 0);
 
         private struct FrameGroupDetail
         {
             public int Width;
             public int Height;
 
-            public FrameGroupDetail(int width, int height) {
+            public FrameGroupDetail(int width, int height)
+            {
                 Width = width;
                 Height = height;
             }
@@ -38,14 +40,16 @@ namespace OpenTibiaUnity.Core.Converter
         private LimitedConcurrencyLevelTaskScheduler m_LCTS;
         private TaskFactory m_TaskFactory;
 
-        public LegacyConverter(int clientVersion, bool useAlpha, int maxThreads = 4) {
+        public LegacyConverter(int clientVersion, bool useAlpha, int maxThreads = 4)
+        {
             m_ClientVersion = clientVersion;
             m_UseAlpha = useAlpha;
             m_LCTS = new LimitedConcurrencyLevelTaskScheduler(maxThreads);
             m_TaskFactory = new TaskFactory(m_LCTS);
         }
 
-        AppearanceFlags GenerateAppearanceFlags(Assets.ThingType thingType, Appearance appearance) {
+        AppearanceFlags GenerateAppearanceFlags(Assets.ThingType thingType, Appearance appearance)
+        {
             if (thingType.Attributes.Count == 0)
                 return null;
 
@@ -60,7 +64,8 @@ namespace OpenTibiaUnity.Core.Converter
             if (thingType.HasAttribute(AttributesUniform.Cloth)) appearanceFlags.Clothes = new AppearanceFlagClothes() { Slot = (ushort)thingType.Attributes[AttributesUniform.Cloth] };
 
             // default action
-            if (thingType.HasAttribute(AttributesUniform.DefaultAction)) {
+            if (thingType.HasAttribute(AttributesUniform.DefaultAction))
+            {
                 var defaultAction = new AppearanceFlagDefaultAction();
                 var oldDefaultActionValue = (ushort)thingType.Attributes[AttributesUniform.DefaultAction];
                 if (oldDefaultActionValue > 4)
@@ -101,27 +106,33 @@ namespace OpenTibiaUnity.Core.Converter
             if (thingType.HasAttribute(AttributesUniform.Unwrapable)) appearanceFlags.GroundBorder = true;
             if (thingType.HasAttribute(AttributesUniform.TopEffect)) appearanceFlags.TopEffect = true;
 
-            if (thingType.HasAttribute(AttributesUniform.Light)) {
+            if (thingType.HasAttribute(AttributesUniform.Light))
+            {
                 var lightInfo = (Assets.Light)thingType.Attributes[AttributesUniform.Light];
 
-                appearanceFlags.Light = new AppearanceFlagLight() {
+                appearanceFlags.Light = new AppearanceFlagLight()
+                {
                     Intensity = lightInfo.intensity,
                     Color = lightInfo.color,
                 };
             }
 
-            if (thingType.HasAttribute(AttributesUniform.Offset)) {
+            if (thingType.HasAttribute(AttributesUniform.Offset))
+            {
                 var displacement = (Assets.Vector2Int)thingType.Attributes[AttributesUniform.Offset];
-                appearanceFlags.Offset = new AppearanceFlagOffset() {
+                appearanceFlags.Offset = new AppearanceFlagOffset()
+                {
                     X = displacement.x,
                     Y = displacement.y,
                 };
             }
 
-            if (thingType.HasAttribute(AttributesUniform.Market)) {
+            if (thingType.HasAttribute(AttributesUniform.Market))
+            {
                 var market = (Assets.MarketData)thingType.Attributes[AttributesUniform.Market];
 
-                appearanceFlags.Market = new AppearanceFlagMarket() {
+                appearanceFlags.Market = new AppearanceFlagMarket()
+                {
                     Category = (Protobuf.Shared.ItemCategory)market.category,
                     TradeAsObjectID = market.tradeAs,
                     ShowAsObjectID = market.showAs,
@@ -140,12 +151,14 @@ namespace OpenTibiaUnity.Core.Converter
         /// </summary>
         /// <param name="thingType">thing generated from tibia.dat (old revisions)</param>
         /// <returns></returns>
-        Appearance GenerateAppearance(Assets.ThingType thingType) {
+        Appearance GenerateAppearance(Assets.ThingType thingType)
+        {
             var appearance = new Appearance();
             appearance.ID = thingType.ID;
             appearance.Flags = GenerateAppearanceFlags(thingType, appearance);
-            
-            foreach (var pair in thingType.FrameGroups) {
+
+            foreach (var pair in thingType.FrameGroups)
+            {
                 var frameGroupType = pair.Key;
                 var legacyFrameGroup = pair.Value;
 
@@ -162,25 +175,32 @@ namespace OpenTibiaUnity.Core.Converter
                 spriteInfo.Phases = legacyFrameGroup.Phases;
                 spriteInfo.BoundingSquare = legacyFrameGroup.ExactSize;
 
-                if (legacyFrameGroup.Animator != null) {
+                if (legacyFrameGroup.Animator != null)
+                {
                     var animation = new SpriteAnimation();
                     spriteInfo.Animation = animation;
                     animation.DefaultStartPhase = (uint)legacyFrameGroup.Animator.StartPhase;
                     animation.Synchronized = !legacyFrameGroup.Animator.Async;
                     //animation.RandomStartPhase = false;
 
-                    if (legacyFrameGroup.Animator.LoopCount < 0) {
+                    if (legacyFrameGroup.Animator.LoopCount < 0)
+                    {
                         animation.LoopType = Protobuf.Shared.AnimationLoopType.PingPong;
-                    } else if (legacyFrameGroup.Animator.LoopCount == 0) {
+                    }
+                    else if (legacyFrameGroup.Animator.LoopCount == 0)
+                    {
                         animation.LoopType = Protobuf.Shared.AnimationLoopType.Infinite;
-                    } else {
+                    }
+                    else
+                    {
                         animation.LoopType = Protobuf.Shared.AnimationLoopType.Counted;
                         animation.LoopCount = (uint)legacyFrameGroup.Animator.LoopCount;
                     }
 
                     //animation.IsOpaque = false;
 
-                    foreach (var m in legacyFrameGroup.Animator.FrameGroupDurations) {
+                    foreach (var m in legacyFrameGroup.Animator.FrameGroupDurations)
+                    {
                         var spritePhase = new SpritePhase();
                         spritePhase.DurationMin = (uint)m.Minimum;
                         spritePhase.DurationMax = (uint)m.Maximum;
@@ -199,17 +219,22 @@ namespace OpenTibiaUnity.Core.Converter
             return appearance;
         }
 
-        Appearances GenerateAppearances() {
-            try {
+        Appearances GenerateAppearances()
+        {
+            try
+            {
                 var rawContentDat = File.ReadAllBytes(Path.Combine(m_ClientVersion.ToString(), "Tibia.dat"));
                 var contentData = new Assets.ContentData(rawContentDat, m_ClientVersion);
 
                 var appearances = new Appearances();
-                for (int i = 0; i < contentData.ThingTypeDictionaries.Length; i++) {
+                for (int i = 0; i < contentData.ThingTypeDictionaries.Length; i++)
+                {
                     var dict = contentData.ThingTypeDictionaries[i];
-                    foreach (var pair in dict) {
+                    foreach (var pair in dict)
+                    {
                         var appearance = GenerateAppearance(pair.Value);
-                        switch (i) {
+                        switch (i)
+                        {
                             case 0: appearances.Objects.Add(appearance); break;
                             case 1: appearances.Outfits.Add(appearance); break;
                             case 2: appearances.Effects.Add(appearance); break;
@@ -219,7 +244,9 @@ namespace OpenTibiaUnity.Core.Converter
                 }
 
                 return appearances;
-            } catch (Exception e) {
+            }
+            catch (Exception e)
+            {
                 Console.WriteLine(e.Message + '\n' + e.StackTrace);
                 Environment.Exit(0);
             }
@@ -227,10 +254,12 @@ namespace OpenTibiaUnity.Core.Converter
             return null;
         }
 
-        public async Task<bool> BeginProcessing() {
+        public async Task<bool> BeginProcessing()
+        {
             string datFile = Path.Combine(m_ClientVersion.ToString(), "Tibia.dat");
             string sprFile = Path.Combine(m_ClientVersion.ToString(), "Tibia.spr");
-            if (!File.Exists(datFile) || !File.Exists(sprFile)) {
+            if (!File.Exists(datFile) || !File.Exists(sprFile))
+            {
                 Console.WriteLine("Tibia.dat or Tibia.spr doesn't exist");
                 return false;
             }
@@ -241,10 +270,13 @@ namespace OpenTibiaUnity.Core.Converter
 
             // loading tibia.spr into chunks
             Assets.ContentSprites contentSprites;
-            try {
+            try
+            {
                 var rawContentSprites = File.ReadAllBytes(sprFile);
                 contentSprites = new Assets.ContentSprites(rawContentSprites, m_ClientVersion, m_UseAlpha);
-            } catch (Exception e) {
+            }
+            catch (Exception e)
+            {
                 Console.WriteLine(e.Message + '\n' + e.StackTrace);
                 return false;
             }
@@ -259,25 +291,29 @@ namespace OpenTibiaUnity.Core.Converter
             SaveSprites(appearances.Effects, ref start, contentSprites);
             SaveSprites(appearances.Missles, ref start, contentSprites);
             SaveSprites(appearances.Objects, ref start, contentSprites);
-            
+
             await Task.WhenAll(m_Tasks.ToArray());
             Console.WriteLine("\rProcessing Spritesheets: Done!");
 
             // saving appearances.dat (with the respective version)
-            using (var stream = File.Create(Path.Combine(resultPath, "appearances.otud"))) {
+            using (var stream = File.Create(Path.Combine(resultPath, "appearances.otud")))
+            {
                 appearances.WriteTo(stream);
             }
 
             // save spritesheets
             using (var spriteStream = new FileStream(Path.Combine(resultPath, "assets.otus"), FileMode.Create))
-            using (var binaryWriter = new BinaryWriter(spriteStream)) {
-                m_SpriteSheet.Sort((a, b) => {
+            using (var binaryWriter = new BinaryWriter(spriteStream))
+            {
+                m_SpriteSheet.Sort((a, b) =>
+                {
                     return a.FirstSpriteID.CompareTo(b.FirstSpriteID);
                 });
 
                 binaryWriter.Write((uint)m_SpriteSheet.Count);
                 uint index = 0;
-                foreach (var spriteType in m_SpriteSheet) {
+                foreach (var spriteType in m_SpriteSheet)
+                {
                     spriteType.AtlasID = index++;
 
                     var buffer = File.ReadAllBytes(Path.Combine(resultPath, "sprites", spriteType.File));
@@ -295,18 +331,21 @@ namespace OpenTibiaUnity.Core.Converter
             return true;
         }
 
-        public List<SpriteTypeImpl> GetSpriteSheet() {
+        public List<SpriteTypeImpl> GetSpriteSheet()
+        {
             return m_SpriteSheet;
         }
 
-        static void DrawBitmap32x32From1_32x32(AsyncGraphics gfx, Bitmap[] bitmaps, int x = 0, int y = 0) {
+        static void DrawBitmap32x32From1_32x32(AsyncGraphics gfx, SKBitmap[] bitmaps, int x = 0, int y = 0)
+        {
             /*
              * Fill: 1
             */
 
             if (bitmaps[0] != null) gfx.DrawImage(bitmaps[0], x, y, 32, 32);
         }
-        static void DrawBitmap64x32From2_32x32(AsyncGraphics gfx, Bitmap[] bitmaps, int x = 0, int y = 0) {
+        static void DrawBitmap64x32From2_32x32(AsyncGraphics gfx, SKBitmap[] bitmaps, int x = 0, int y = 0)
+        {
             /*
              * Left: 2
              * Right: 1
@@ -315,7 +354,8 @@ namespace OpenTibiaUnity.Core.Converter
             if (bitmaps[1] != null) gfx.DrawImage(bitmaps[1], x, y, 32, 32);
             if (bitmaps[0] != null) gfx.DrawImage(bitmaps[0], x + 32, y, 32, 32);
         }
-        static void DrawBitmap32x64From2_32x32(AsyncGraphics gfx, Bitmap[] bitmaps, int x = 0, int y = 0) {
+        static void DrawBitmap32x64From2_32x32(AsyncGraphics gfx, SKBitmap[] bitmaps, int x = 0, int y = 0)
+        {
             /*
              * Top: 2
              * Bottom: 1
@@ -324,7 +364,8 @@ namespace OpenTibiaUnity.Core.Converter
             if (bitmaps[1] != null) gfx.DrawImage(bitmaps[1], x, y, 32, 32);
             if (bitmaps[0] != null) gfx.DrawImage(bitmaps[0], x, y + 32, 32, 32);
         }
-        static void DrawBitmap64x64From4_32x32(AsyncGraphics gfx, Bitmap[] bitmaps, int x = 0, int y = 0) {
+        static void DrawBitmap64x64From4_32x32(AsyncGraphics gfx, SKBitmap[] bitmaps, int x = 0, int y = 0)
+        {
             /*
              * Topleft: 4
              * TopRight: 3
@@ -338,27 +379,32 @@ namespace OpenTibiaUnity.Core.Converter
             if (bitmaps[0] != null) gfx.DrawImage(bitmaps[0], x + 32, y + 32, 32, 32);
         }
 
-        private void InternalSaveStaticBitmaps(RepeatedField<uint> sprites, DrawBitmapsDelegate drawFunc, int parts, int spriteType, int localStart, Assets.ContentSprites sprParser, int width, int height) {
+        private void InternalSaveStaticBitmaps(RepeatedField<uint> sprites, DrawBitmapsDelegate drawFunc, int parts, int spriteType, int localStart, Assets.ContentSprites sprParser, int width, int height)
+        {
             int singleSize = width * height;
 
-            AsyncGraphics gfx = new AsyncGraphics(new Bitmap(Program.SEGMENT_DIMENTION, Program.SEGMENT_DIMENTION));
+            AsyncGraphics gfx = new AsyncGraphics(new SKBitmap(Program.SEGMENT_DIMENTION, Program.SEGMENT_DIMENTION));
             string filename;
 
             int x = 0, y = 0, z = 0;
-            for (int i = 0; i < sprites.Count;) {
-                Bitmap[] bitmapParts = new Bitmap[parts];
-                for (int m = 0; m < parts; m++) {
+            for (int i = 0; i < sprites.Count;)
+            {
+                var bitmapParts = new SKBitmap[parts];
+                for (int m = 0; m < parts; m++)
+                {
                     if (i + m >= sprites.Count)
                         break;
 
                     bitmapParts[m] = sprParser.GetSprite(sprites[i + m]);
                 }
 
-                if (y >= Program.SEGMENT_DIMENTION) {
+                if (y >= Program.SEGMENT_DIMENTION)
+                {
                     filename = string.Format("sprites-{0}-{1}.png", localStart, localStart + (Program.BITMAP_SIZE / singleSize) - 1);
                     m_Tasks.Add(gfx.SaveAndDispose(Path.Combine(m_ClientVersion.ToString(), "result", "sprites", filename)));
 
-                    m_SpriteSheet.Add(new SpriteTypeImpl() {
+                    m_SpriteSheet.Add(new SpriteTypeImpl()
+                    {
                         File = filename,
                         SpriteType = spriteType,
                         FirstSpriteID = (uint)localStart,
@@ -367,7 +413,7 @@ namespace OpenTibiaUnity.Core.Converter
 
                     localStart += Program.BITMAP_SIZE / singleSize;
 
-                    gfx = new AsyncGraphics(new Bitmap(Program.SEGMENT_DIMENTION, Program.SEGMENT_DIMENTION));
+                    gfx = new AsyncGraphics(new SKBitmap(Program.SEGMENT_DIMENTION, Program.SEGMENT_DIMENTION));
                     x = y = z = 0;
                 }
 
@@ -376,7 +422,8 @@ namespace OpenTibiaUnity.Core.Converter
                 m_Tasks.Add(gfx.DisposeOnDone(bitmapParts));
 
                 x += width;
-                if (x >= Program.SEGMENT_DIMENTION) {
+                if (x >= Program.SEGMENT_DIMENTION)
+                {
                     y += height;
                     x = 0;
                 }
@@ -393,7 +440,8 @@ namespace OpenTibiaUnity.Core.Converter
             filename = string.Format("sprites-{0}-{1}.png", localStart, end - 1);
             m_Tasks.Add(gfx.SaveAndDispose(Path.Combine(m_ClientVersion.ToString(), "result", "sprites", filename)));
 
-            m_SpriteSheet.Add(new SpriteTypeImpl() {
+            m_SpriteSheet.Add(new SpriteTypeImpl()
+            {
                 File = filename,
                 SpriteType = spriteType,
                 FirstSpriteID = (uint)localStart,
@@ -401,22 +449,30 @@ namespace OpenTibiaUnity.Core.Converter
             });
         }
 
-        private void SaveStaticBitmaps(RepeatedField<uint> sprites, ref int start, Assets.ContentSprites sprParser, int width, int height) {
+        private void SaveStaticBitmaps(RepeatedField<uint> sprites, ref int start, Assets.ContentSprites sprParser, int width, int height)
+        {
             DrawBitmapsDelegate drawFunc;
             int parts = 0;
             int spritetype = 1;
-            if (width == 32 && height == 32) {
+            if (width == 32 && height == 32)
+            {
                 drawFunc = DrawBitmap32x32From1_32x32;
                 parts = 1;
-            } else if (width == 32 && height == 64) {
+            }
+            else if (width == 32 && height == 64)
+            {
                 drawFunc = DrawBitmap32x64From2_32x32;
                 parts = 2;
                 spritetype = 2;
-            } else if (width == 64 && height == 32) {
+            }
+            else if (width == 64 && height == 32)
+            {
                 drawFunc = DrawBitmap64x32From2_32x32;
                 parts = 2;
                 spritetype = 3;
-            } else {
+            }
+            else
+            {
                 drawFunc = DrawBitmap64x64From4_32x32;
                 parts = 4;
                 spritetype = 4;
@@ -429,11 +485,12 @@ namespace OpenTibiaUnity.Core.Converter
 
             int localStart = start;
             start += sprites.Count / parts;
-            
+
             m_Tasks.Add(m_TaskFactory.StartNew(() => InternalSaveStaticBitmaps(sprites, drawFunc, parts, spritetype, localStart, sprParser, width, height)));
         }
 
-        private void SaveSprites(RepeatedField<Appearance> appearances, ref int start, Assets.ContentSprites sprParser) {
+        private void SaveSprites(RepeatedField<Appearance> appearances, ref int start, Assets.ContentSprites sprParser)
+        {
             RepeatedField<uint>[] sprites = new RepeatedField<uint>[4];
             for (int i = 0; i < 4; i++) sprites[i] = new RepeatedField<uint>();
             DeploySprites(appearances, sprites);
@@ -444,38 +501,49 @@ namespace OpenTibiaUnity.Core.Converter
             SaveStaticBitmaps(sprites[3], ref start, sprParser, 64, 64);
         }
 
-        private void DeploySprites(RepeatedField<Appearance> appearances, RepeatedField<uint>[] sprites) {
+        private void DeploySprites(RepeatedField<Appearance> appearances, RepeatedField<uint>[] sprites)
+        {
             var frameGroupsArray = new List<FrameGroup>[4];
             for (int i = 0; i < 4; i++)
                 frameGroupsArray[i] = new List<FrameGroup>();
 
-            foreach (var appearance in appearances) {
-                foreach (var frameGroup in appearance.FrameGroups) {
-                    if (m_FrameGroupDetails.TryGetValue(frameGroup, out var detail)) {
+            foreach (var appearance in appearances)
+            {
+                foreach (var frameGroup in appearance.FrameGroups)
+                {
+                    if (m_FrameGroupDetails.TryGetValue(frameGroup, out var detail))
+                    {
                         int type = -1;
-                        if (detail.Width == 1) {
+                        if (detail.Width == 1)
+                        {
                             if (detail.Height == 1)
                                 type = 0;
                             else if (detail.Height == 2)
                                 type = 1;
-                        } else if (detail.Width == 2) {
+                        }
+                        else if (detail.Width == 2)
+                        {
                             if (detail.Height == 1)
                                 type = 2;
                             else if (detail.Height == 2)
                                 type = 3;
                         }
 
-                        if (type >= 0) {
+                        if (type >= 0)
+                        {
                             sprites[type].AddRange(frameGroup.SpriteInfo.SpriteIDs);
                             frameGroupsArray[type].Add(frameGroup);
-                        } else {
+                        }
+                        else
+                        {
                             Console.WriteLine(string.Format("Invalid width or height, currently there is maximum support for 64x64 sprites ({0}, {1})", detail.Width, detail.Height));
                         }
                     }
                 }
             }
 
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 4; i++)
+            {
                 int parts = 1; // by default, each sprite represents 32x32 which is one part
                 if (i == 1 || i == 2) // some sprites are 64x32 or 32x64 which is represented by 2 parts
                     parts = 2;
@@ -488,7 +556,8 @@ namespace OpenTibiaUnity.Core.Converter
             }
         }
 
-        private void ChangeSpriteIDs(FrameGroup frameGroup, int parts) {
+        private void ChangeSpriteIDs(FrameGroup frameGroup, int parts)
+        {
             /**
              * initialy, we save the sprite ids as per legacy sprites (only supports 32x32, aka parts)
              * so to correct this, we simply divide the total number of sprites by the number of parts
