@@ -320,7 +320,8 @@ namespace OpenTibiaUnity.Core.Converter
 
                     var buffer = File.ReadAllBytes(Path.Combine(resultPath, "sprites", spriteType.File));
                     binaryWriter.Write(spriteType.AtlasID);
-                    binaryWriter.Write((ushort)spriteType.SpriteType);
+                    binaryWriter.Write((byte)spriteType.WidthCount);
+                    binaryWriter.Write((byte)spriteType.HeightCount);
                     binaryWriter.Write(spriteType.FirstSpriteID);
                     binaryWriter.Write(spriteType.LastSpriteID);
 
@@ -362,14 +363,8 @@ namespace OpenTibiaUnity.Core.Converter
         private void InternalSaveStaticBitmaps(RepeatedField<uint> sprites, int parts, int localStart, Assets.ContentSprites sprParser, int width, int height)
         {
             int singleSize = width * height;
-            var spriteType = (width, height) switch
-            {
-                (32, 64) => 2,
-                (64, 32) => 3,
-                (64, 64) => 4,
-                (96, 96) => 5,
-                _ => 1,
-            };
+            var widthCount = width / 32;
+            var heightCount = height / 32;
 
             AsyncGraphics gfx = new AsyncGraphics(new SKBitmap(Program.SEGMENT_DIMENTION, Program.SEGMENT_DIMENTION));
             string filename;
@@ -394,7 +389,8 @@ namespace OpenTibiaUnity.Core.Converter
                     m_SpriteSheet.Add(new SpriteTypeImpl()
                     {
                         File = filename,
-                        SpriteType = spriteType,
+                        WidthCount = widthCount,
+                        HeightCount = heightCount,
                         FirstSpriteID = (uint)localStart,
                         LastSpriteID = (uint)(localStart + (Program.BITMAP_SIZE / singleSize) - 1)
                     });
@@ -431,7 +427,8 @@ namespace OpenTibiaUnity.Core.Converter
             m_SpriteSheet.Add(new SpriteTypeImpl()
             {
                 File = filename,
-                SpriteType = spriteType,
+                WidthCount = widthCount,
+                HeightCount = heightCount,
                 FirstSpriteID = (uint)localStart,
                 LastSpriteID = (uint)(end - 1)
             });
@@ -451,7 +448,6 @@ namespace OpenTibiaUnity.Core.Converter
             m_Tasks.Add(m_TaskFactory.StartNew(() => InternalSaveStaticBitmaps(sprites, parts, localStart, sprParser, width, height)));
         }
 
-        const int SPRITE_TYPES = 5;
         private void SaveSprites(RepeatedField<Appearance> appearances, ref int start, Assets.ContentSprites sprParser)
         {
             var output = DeploySprites(appearances);
@@ -468,6 +464,7 @@ namespace OpenTibiaUnity.Core.Converter
                     rf.AddRange(frame.ids);
                 }
 
+                Console.WriteLine($"Processing group. Size: {first.details.Width * 32}x{first.details.Height * 32}");
                 SaveStaticBitmaps(rf, ref start, sprParser, first.details.Width * 32, first.details.Height * 32);
             }
         }
@@ -485,34 +482,22 @@ namespace OpenTibiaUnity.Core.Converter
                 {
                     if (m_FrameGroupDetails.TryGetValue(frameGroup, out var detail))
                     {
-                        int type = (detail.Width, detail.Height) switch
+                        if (detail.Width == 0 || detail.Height == 0)
                         {
-                            (1, 1) => 0,
-                            (1, 2) => 1,
-                            (2, 1) => 2,
-                            (2, 2) => 3,
-                            (3, 3) => 4,
-                            _ => -1
-                        };
-
-                        if (type >= 0)
-                        {
-                            frameGroups.Add((detail, type, frameGroup));
-
-                            var key = int.Parse($"{detail.Width}{detail.Height}");
-                            if (!output.ContainsKey(key))
-                            {
-                                output[key] = new List<SpriteRenderDetails>();
-                            }
-
-                            var rf = new RepeatedField<uint>();
-                            rf.AddRange(frameGroup.SpriteInfo.SpriteIDs);
-                            output[key].Add(new(rf, detail));
+                            continue;
                         }
-                        else
+
+                        var key = int.Parse($"{detail.Width}{detail.Height}");
+
+                        frameGroups.Add((detail, key, frameGroup));
+                        if (!output.ContainsKey(key))
                         {
-                            Console.WriteLine(string.Format("Invalid width or height, currently there is maximum support for 64x64 sprites ({0}, {1})", detail.Width, detail.Height));
+                            output[key] = new List<SpriteRenderDetails>();
                         }
+
+                        var rf = new RepeatedField<uint>();
+                        rf.AddRange(frameGroup.SpriteInfo.SpriteIDs);
+                        output[key].Add(new(rf, detail));
                     }
                 }
             }

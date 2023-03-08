@@ -6,7 +6,8 @@ namespace OpenTibiaUnity.Core.Converter
     public class SpriteTypeImpl
     {
         public string File;
-        public int SpriteType;
+        public int WidthCount;
+        public int HeightCount;
         public uint FirstSpriteID;
         public uint LastSpriteID;
         public uint AtlasID;
