@@ -71,8 +71,10 @@ namespace OpenTibiaUnity
 
             if (clientVersion == -1)
             {
-                Console.WriteLine("Invalid client version.");
-                return;
+                clientVersion = 840;
+
+                //Console.WriteLine("Invalid client version.");
+                //return;
             }
 
             if (clientVersion >= 1100 && buildVersion == -1)
@@ -98,10 +100,7 @@ namespace OpenTibiaUnity
             {
                 Core.Converter.IConverter converter = null;
 
-                if (clientVersion < 1100)
-                    converter = new Core.Converter.LegacyConverter(clientVersion, useAlpha);
-                else
-                    converter = new Core.Converter.ProtobufConverter(clientVersion, buildVersion);
+                converter = new Core.Converter.LegacyConverter(clientVersion, useAlpha);
 
                 var task = converter.BeginProcessing();
                 task.Wait();

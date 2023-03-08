@@ -336,50 +336,28 @@ namespace OpenTibiaUnity.Core.Converter
             return m_SpriteSheet;
         }
 
-        static void DrawBitmap32x32From1_32x32(AsyncGraphics gfx, SKBitmap[] bitmaps, int x = 0, int y = 0)
+        static void DrawBitmap_Sprites32x32(AsyncGraphics gfx, SKBitmap[] bitmaps, int w, int h, int x = 0, int y = 0)
         {
-            /*
-             * Fill: 1
-            */
+            // if (bitmaps[3] != null) gfx.DrawImage(bitmaps[3], x, y, 32, 32);
+            // if (bitmaps[2] != null) gfx.DrawImage(bitmaps[2], x + 32, y, 32, 32);
+            // if (bitmaps[1] != null) gfx.DrawImage(bitmaps[1], x, y + 32, 32, 32);
+            // if (bitmaps[0] != null) gfx.DrawImage(bitmaps[0], x + 32, y + 32, 32, 32);
 
-            if (bitmaps[0] != null) gfx.DrawImage(bitmaps[0], x, y, 32, 32);
-        }
-        static void DrawBitmap64x32From2_32x32(AsyncGraphics gfx, SKBitmap[] bitmaps, int x = 0, int y = 0)
-        {
-            /*
-             * Left: 2
-             * Right: 1
-            */
-
-            if (bitmaps[1] != null) gfx.DrawImage(bitmaps[1], x, y, 32, 32);
-            if (bitmaps[0] != null) gfx.DrawImage(bitmaps[0], x + 32, y, 32, 32);
-        }
-        static void DrawBitmap32x64From2_32x32(AsyncGraphics gfx, SKBitmap[] bitmaps, int x = 0, int y = 0)
-        {
-            /*
-             * Top: 2
-             * Bottom: 1
-            */
-
-            if (bitmaps[1] != null) gfx.DrawImage(bitmaps[1], x, y, 32, 32);
-            if (bitmaps[0] != null) gfx.DrawImage(bitmaps[0], x, y + 32, 32, 32);
-        }
-        static void DrawBitmap64x64From4_32x32(AsyncGraphics gfx, SKBitmap[] bitmaps, int x = 0, int y = 0)
-        {
-            /*
-             * Topleft: 4
-             * TopRight: 3
-             * BottomLeft: 2
-             * BottomRight: 1
-            */
-
-            if (bitmaps[3] != null) gfx.DrawImage(bitmaps[3], x, y, 32, 32);
-            if (bitmaps[2] != null) gfx.DrawImage(bitmaps[2], x + 32, y, 32, 32);
-            if (bitmaps[1] != null) gfx.DrawImage(bitmaps[1], x, y + 32, 32, 32);
-            if (bitmaps[0] != null) gfx.DrawImage(bitmaps[0], x + 32, y + 32, 32, 32);
+            var c = bitmaps.Length;
+            for (var i = 0; i < h; i++)
+            {
+                for (var k = 0; k < w; k++)
+                {
+                    c--;
+                    if (bitmaps[c] != null)
+                    {
+                        gfx.DrawImage(bitmaps[c], x + (k * 32), y + (i * 32), 32, 32);
+                    }
+                }
+            }
         }
 
-        private void InternalSaveStaticBitmaps(RepeatedField<uint> sprites, DrawBitmapsDelegate drawFunc, int parts, int spriteType, int localStart, Assets.ContentSprites sprParser, int width, int height)
+        private void InternalSaveStaticBitmaps(RepeatedField<uint> sprites, int parts, int spriteType, int localStart, Assets.ContentSprites sprParser, int width, int height)
         {
             int singleSize = width * height;
 
@@ -418,7 +396,7 @@ namespace OpenTibiaUnity.Core.Converter
                 }
 
                 var tmpSmallBitmaps = bitmapParts;
-                drawFunc(gfx, bitmapParts, x, y);
+                DrawBitmap_Sprites32x32(gfx, bitmapParts, width / 32, height / 32, x, y);
                 m_Tasks.Add(gfx.DisposeOnDone(bitmapParts));
 
                 x += width;
@@ -451,32 +429,33 @@ namespace OpenTibiaUnity.Core.Converter
 
         private void SaveStaticBitmaps(RepeatedField<uint> sprites, ref int start, Assets.ContentSprites sprParser, int width, int height)
         {
-            DrawBitmapsDelegate drawFunc;
             int parts = 0;
             int spritetype = 1;
             if (width == 32 && height == 32)
             {
-                drawFunc = DrawBitmap32x32From1_32x32;
                 parts = 1;
             }
             else if (width == 32 && height == 64)
             {
-                drawFunc = DrawBitmap32x64From2_32x32;
                 parts = 2;
                 spritetype = 2;
             }
             else if (width == 64 && height == 32)
             {
-                drawFunc = DrawBitmap64x32From2_32x32;
                 parts = 2;
                 spritetype = 3;
             }
+            else if (width == 96 && height == 96)
+            {
+                parts = 3 * 3;
+                spritetype = 5;
+            }
             else
             {
-                drawFunc = DrawBitmap64x64From4_32x32;
                 parts = 4;
                 spritetype = 4;
             }
+
 
             int amountInBitmap = Program.BITMAP_SIZE / (32 * 32);
             int totalBitmaps = (int)Math.Ceiling((double)sprites.Count / amountInBitmap);
@@ -486,25 +465,32 @@ namespace OpenTibiaUnity.Core.Converter
             int localStart = start;
             start += sprites.Count / parts;
 
-            m_Tasks.Add(m_TaskFactory.StartNew(() => InternalSaveStaticBitmaps(sprites, drawFunc, parts, spritetype, localStart, sprParser, width, height)));
+            m_Tasks.Add(m_TaskFactory.StartNew(() => InternalSaveStaticBitmaps(sprites, parts, spritetype, localStart, sprParser, width, height)));
         }
 
+
+        const int SPRITE_TYPES = 5;
         private void SaveSprites(RepeatedField<Appearance> appearances, ref int start, Assets.ContentSprites sprParser)
         {
-            RepeatedField<uint>[] sprites = new RepeatedField<uint>[4];
-            for (int i = 0; i < 4; i++) sprites[i] = new RepeatedField<uint>();
+            var sprites = new RepeatedField<uint>[SPRITE_TYPES];
+            for (int i = 0; i < SPRITE_TYPES; i++)
+            {
+                sprites[i] = new RepeatedField<uint>();
+            }
+
             DeploySprites(appearances, sprites);
 
             SaveStaticBitmaps(sprites[0], ref start, sprParser, 32, 32);
             SaveStaticBitmaps(sprites[1], ref start, sprParser, 32, 64);
             SaveStaticBitmaps(sprites[2], ref start, sprParser, 64, 32);
             SaveStaticBitmaps(sprites[3], ref start, sprParser, 64, 64);
+            SaveStaticBitmaps(sprites[4], ref start, sprParser, 96, 96);
         }
 
         private void DeploySprites(RepeatedField<Appearance> appearances, RepeatedField<uint>[] sprites)
         {
-            var frameGroupsArray = new List<FrameGroup>[4];
-            for (int i = 0; i < 4; i++)
+            var frameGroupsArray = new List<FrameGroup>[SPRITE_TYPES];
+            for (int i = 0; i < SPRITE_TYPES; i++)
                 frameGroupsArray[i] = new List<FrameGroup>();
 
             foreach (var appearance in appearances)
@@ -528,6 +514,13 @@ namespace OpenTibiaUnity.Core.Converter
                             else if (detail.Height == 2)
                                 type = 3;
                         }
+                        else if (detail.Width == 3)
+                        {
+                            if (detail.Height == 3)
+                            {
+                                type = 4;
+                            }
+                        }
 
                         if (type >= 0)
                         {
@@ -542,17 +535,23 @@ namespace OpenTibiaUnity.Core.Converter
                 }
             }
 
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < SPRITE_TYPES; i++)
             {
                 int parts = 1; // by default, each sprite represents 32x32 which is one part
                 if (i == 1 || i == 2) // some sprites are 64x32 or 32x64 which is represented by 2 parts
                     parts = 2;
                 else if (i == 3) // 64x64 sprites are represented by 4 parts
                     parts = 4;
+                else if (i == 4)
+                {
+                    parts = 3 * 3;
+                }
 
                 var frameGroups = frameGroupsArray[i];
                 for (int j = 0; j < frameGroups.Count; j++)
+                {
                     ChangeSpriteIDs(frameGroups[j], parts);
+                }
             }
         }
 
