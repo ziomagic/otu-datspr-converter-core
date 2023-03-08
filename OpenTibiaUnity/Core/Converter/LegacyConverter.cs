@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -357,9 +358,17 @@ namespace OpenTibiaUnity.Core.Converter
             }
         }
 
-        private void InternalSaveStaticBitmaps(RepeatedField<uint> sprites, int parts, int spriteType, int localStart, Assets.ContentSprites sprParser, int width, int height)
+        private void InternalSaveStaticBitmaps(RepeatedField<uint> sprites, int parts, int localStart, Assets.ContentSprites sprParser, int width, int height)
         {
             int singleSize = width * height;
+            var spriteType = (width, height) switch
+            {
+                (32, 64) => 2,
+                (64, 32) => 3,
+                (64, 64) => 4,
+                (96, 96) => 5,
+                _ => 1,
+            };
 
             AsyncGraphics gfx = new AsyncGraphics(new SKBitmap(Program.SEGMENT_DIMENTION, Program.SEGMENT_DIMENTION));
             string filename;
@@ -429,34 +438,7 @@ namespace OpenTibiaUnity.Core.Converter
 
         private void SaveStaticBitmaps(RepeatedField<uint> sprites, ref int start, Assets.ContentSprites sprParser, int width, int height)
         {
-            int parts = 0;
-            int spritetype = 1;
-            if (width == 32 && height == 32)
-            {
-                parts = 1;
-            }
-            else if (width == 32 && height == 64)
-            {
-                parts = 2;
-                spritetype = 2;
-            }
-            else if (width == 64 && height == 32)
-            {
-                parts = 2;
-                spritetype = 3;
-            }
-            else if (width == 96 && height == 96)
-            {
-                parts = 3 * 3;
-                spritetype = 5;
-            }
-            else
-            {
-                parts = 4;
-                spritetype = 4;
-            }
-
-
+            int parts = (width / 32) * (height / 32);
             int amountInBitmap = Program.BITMAP_SIZE / (32 * 32);
             int totalBitmaps = (int)Math.Ceiling((double)sprites.Count / amountInBitmap);
             if (totalBitmaps == 0)
@@ -465,7 +447,7 @@ namespace OpenTibiaUnity.Core.Converter
             int localStart = start;
             start += sprites.Count / parts;
 
-            m_Tasks.Add(m_TaskFactory.StartNew(() => InternalSaveStaticBitmaps(sprites, parts, spritetype, localStart, sprParser, width, height)));
+            m_Tasks.Add(m_TaskFactory.StartNew(() => InternalSaveStaticBitmaps(sprites, parts, localStart, sprParser, width, height)));
         }
 
 
@@ -489,43 +471,27 @@ namespace OpenTibiaUnity.Core.Converter
 
         private void DeploySprites(RepeatedField<Appearance> appearances, RepeatedField<uint>[] sprites)
         {
-            var frameGroupsArray = new List<FrameGroup>[SPRITE_TYPES];
-            for (int i = 0; i < SPRITE_TYPES; i++)
-                frameGroupsArray[i] = new List<FrameGroup>();
-
+            var frameGroups = new List<(FrameGroupDetail, int, FrameGroup)>();
             foreach (var appearance in appearances)
             {
                 foreach (var frameGroup in appearance.FrameGroups)
                 {
                     if (m_FrameGroupDetails.TryGetValue(frameGroup, out var detail))
                     {
-                        int type = -1;
-                        if (detail.Width == 1)
+                        int type = (detail.Width, detail.Height) switch
                         {
-                            if (detail.Height == 1)
-                                type = 0;
-                            else if (detail.Height == 2)
-                                type = 1;
-                        }
-                        else if (detail.Width == 2)
-                        {
-                            if (detail.Height == 1)
-                                type = 2;
-                            else if (detail.Height == 2)
-                                type = 3;
-                        }
-                        else if (detail.Width == 3)
-                        {
-                            if (detail.Height == 3)
-                            {
-                                type = 4;
-                            }
-                        }
+                            (1, 1) => 0,
+                            (1, 2) => 1,
+                            (2, 1) => 2,
+                            (2, 2) => 3,
+                            (3, 3) => 4,
+                            _ => -1
+                        };
 
                         if (type >= 0)
                         {
                             sprites[type].AddRange(frameGroup.SpriteInfo.SpriteIDs);
-                            frameGroupsArray[type].Add(frameGroup);
+                            frameGroups.Add((detail, type, frameGroup));
                         }
                         else
                         {
@@ -535,23 +501,11 @@ namespace OpenTibiaUnity.Core.Converter
                 }
             }
 
-            for (int i = 0; i < SPRITE_TYPES; i++)
+            frameGroups = frameGroups.OrderBy(x => x.Item2).ToList();
+            foreach (var (detail, index, group) in frameGroups)
             {
-                int parts = 1; // by default, each sprite represents 32x32 which is one part
-                if (i == 1 || i == 2) // some sprites are 64x32 or 32x64 which is represented by 2 parts
-                    parts = 2;
-                else if (i == 3) // 64x64 sprites are represented by 4 parts
-                    parts = 4;
-                else if (i == 4)
-                {
-                    parts = 3 * 3;
-                }
-
-                var frameGroups = frameGroupsArray[i];
-                for (int j = 0; j < frameGroups.Count; j++)
-                {
-                    ChangeSpriteIDs(frameGroups[j], parts);
-                }
+                var parts = detail.Width * detail.Height;
+                ChangeSpriteIDs(group, parts);
             }
         }
 
@@ -568,7 +522,9 @@ namespace OpenTibiaUnity.Core.Converter
 
             int total = (int)Math.Ceiling((double)spriteIDs.Count / parts);
             for (int i = 0; i < total; i++)
+            {
                 newSpriteIDs.Add(m_ReferencedSpriteID++);
+            }
 
             frameGroup.SpriteInfo.SpriteIDs.Clear();
             frameGroup.SpriteInfo.SpriteIDs.AddRange(newSpriteIDs);

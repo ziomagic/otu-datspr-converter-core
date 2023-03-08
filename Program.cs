@@ -40,7 +40,6 @@ namespace OpenTibiaUnity
         static void Main(string[] args)
         {
             int clientVersion = -1;
-            int buildVersion = -1;
             int convertTo = -1;
             bool useAlpha = false;
             foreach (var arg in args)
@@ -48,10 +47,6 @@ namespace OpenTibiaUnity
                 if (arg.StartsWith("--version="))
                 {
                     int.TryParse(arg.Substring(10), out clientVersion);
-                }
-                else if (arg.StartsWith("--build-version="))
-                {
-                    int.TryParse(arg.Substring(16), out buildVersion);
                 }
                 else if (arg.StartsWith("--alpha="))
                 {
@@ -77,16 +72,7 @@ namespace OpenTibiaUnity
                 //return;
             }
 
-            if (clientVersion >= 1100 && buildVersion == -1)
-            {
-                Console.WriteLine("Invalid build version.");
-                return;
-            }
-
-            if (clientVersion >= 1100)
-                Console.WriteLine("Loading version: {0}.{1}", clientVersion, buildVersion);
-            else
-                Console.WriteLine("Loading version: {0}", clientVersion);
+            Console.WriteLine("Loading version: {0}", clientVersion);
 
             Stopwatch watch = new Stopwatch();
             watch.Start();
@@ -98,10 +84,7 @@ namespace OpenTibiaUnity
             }
             else
             {
-                Core.Converter.IConverter converter = null;
-
-                converter = new Core.Converter.LegacyConverter(clientVersion, useAlpha);
-
+                Core.Converter.IConverter converter = new Core.Converter.LegacyConverter(clientVersion, useAlpha);
                 var task = converter.BeginProcessing();
                 task.Wait();
             }
