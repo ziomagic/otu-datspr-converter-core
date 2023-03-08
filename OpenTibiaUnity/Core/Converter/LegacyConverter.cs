@@ -1,5 +1,6 @@
 ﻿using Google.Protobuf;
 using Google.Protobuf.Collections;
+using Google.Protobuf.WellKnownTypes;
 using OpenTibiaUnity.Core.Metaflags;
 using OpenTibiaUnity.Protobuf.Appearances;
 using SkiaSharp;
@@ -450,28 +451,34 @@ namespace OpenTibiaUnity.Core.Converter
             m_Tasks.Add(m_TaskFactory.StartNew(() => InternalSaveStaticBitmaps(sprites, parts, localStart, sprParser, width, height)));
         }
 
-
         const int SPRITE_TYPES = 5;
         private void SaveSprites(RepeatedField<Appearance> appearances, ref int start, Assets.ContentSprites sprParser)
         {
-            var sprites = new RepeatedField<uint>[SPRITE_TYPES];
-            for (int i = 0; i < SPRITE_TYPES; i++)
+            var output = DeploySprites(appearances);
+            var keys = output.Keys.OrderBy(x => x);
+
+            foreach (var key in keys)
             {
-                sprites[i] = new RepeatedField<uint>();
+                var g = output[key];
+                var first = g.First();
+                var rf = new RepeatedField<uint>();
+
+                foreach (var frame in g)
+                {
+                    rf.AddRange(frame.ids);
+                }
+
+                SaveStaticBitmaps(rf, ref start, sprParser, first.details.Width * 32, first.details.Height * 32);
             }
-
-            DeploySprites(appearances, sprites);
-
-            SaveStaticBitmaps(sprites[0], ref start, sprParser, 32, 32);
-            SaveStaticBitmaps(sprites[1], ref start, sprParser, 32, 64);
-            SaveStaticBitmaps(sprites[2], ref start, sprParser, 64, 32);
-            SaveStaticBitmaps(sprites[3], ref start, sprParser, 64, 64);
-            SaveStaticBitmaps(sprites[4], ref start, sprParser, 96, 96);
         }
 
-        private void DeploySprites(RepeatedField<Appearance> appearances, RepeatedField<uint>[] sprites)
+        private record SpriteRenderDetails(RepeatedField<uint> ids, FrameGroupDetail details);
+
+        private Dictionary<int, List<SpriteRenderDetails>> DeploySprites(RepeatedField<Appearance> appearances)
         {
             var frameGroups = new List<(FrameGroupDetail, int, FrameGroup)>();
+            var output = new Dictionary<int, List<SpriteRenderDetails>>();
+
             foreach (var appearance in appearances)
             {
                 foreach (var frameGroup in appearance.FrameGroups)
@@ -490,8 +497,17 @@ namespace OpenTibiaUnity.Core.Converter
 
                         if (type >= 0)
                         {
-                            sprites[type].AddRange(frameGroup.SpriteInfo.SpriteIDs);
                             frameGroups.Add((detail, type, frameGroup));
+
+                            var key = int.Parse($"{detail.Width}{detail.Height}");
+                            if (!output.ContainsKey(key))
+                            {
+                                output[key] = new List<SpriteRenderDetails>();
+                            }
+
+                            var rf = new RepeatedField<uint>();
+                            rf.AddRange(frameGroup.SpriteInfo.SpriteIDs);
+                            output[key].Add(new(rf, detail));
                         }
                         else
                         {
@@ -507,6 +523,8 @@ namespace OpenTibiaUnity.Core.Converter
                 var parts = detail.Width * detail.Height;
                 ChangeSpriteIDs(group, parts);
             }
+
+            return output;
         }
 
         private void ChangeSpriteIDs(FrameGroup frameGroup, int parts)
