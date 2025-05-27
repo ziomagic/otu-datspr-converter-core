@@ -64,7 +64,9 @@ namespace OpenTibiaUnity
         {
             await Task.WhenAll(m_DrawTasks);
             foreach (var bitmap in bitmaps)
-                bitmap.Dispose();
+            {
+                bitmap?.Dispose();
+            }
         }
 
         public async Task SaveAndDispose(string filename)
